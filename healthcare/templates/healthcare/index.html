@@ -1,0 +1,70 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Healthcare API</title>
+  <link rel="stylesheet" href="{% static 'healthcare/app.css' %}">
+  <script src="{% static 'healthcare/app.js' %}" defer></script>
+</head>
+<body>
+  <header>
+    <h1>Healthcare API</h1>
+    <div id="account-area" hidden>
+      <span id="account-name"></span>
+      <button id="logout-button" type="button">Log out</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="auth-screen">
+      <h2 id="auth-title">Welcome back</h2>
+      <p id="auth-description">Sign in to manage patients, doctors, and care teams.</p>
+      <div role="tablist" aria-label="Account access">
+        <button id="login-tab" class="auth-tab active" type="button" role="tab" aria-selected="true">Sign in</button>
+        <button id="register-tab" class="auth-tab" type="button" role="tab" aria-selected="false">Create account</button>
+      </div>
+      <form id="auth-form">
+        <label id="name-field" hidden>
+          Name
+          <input name="name" type="text" autocomplete="name" maxlength="150">
+        </label>
+        <label>
+          Email
+          <input name="email" type="email" autocomplete="email" required>
+        </label>
+        <label>
+          Password
+          <input name="password" type="password" autocomplete="current-password" minlength="8" required>
+        </label>
+        <p id="auth-message" role="status" aria-live="polite"></p>
+        <button id="auth-submit" type="submit">Sign in</button>
+      </form>
+    </section>
+
+    <section id="workspace" hidden>
+      <h2>Workspace</h2>
+      <nav aria-label="Workspace sections">
+        <button class="nav-tab active" data-section="patients" type="button">Patients</button>
+        <button class="nav-tab" data-section="doctors" type="button">Doctors</button>
+        <button class="nav-tab" data-section="mappings" type="button">Care teams</button>
+      </nav>
+
+      <p id="notice" role="status" aria-live="polite" hidden></p>
+      <section>
+        <p id="section-kicker"></p>
+        <h3 id="section-title">Patients</h3>
+        <p id="section-description">Your patient records.</p>
+        <button id="new-record" type="button">Add patient</button>
+        <form id="record-form" hidden></form>
+        <div id="record-list"></div>
+        <div id="empty-state" hidden>
+          <p>No records yet.</p>
+          <button id="empty-add" type="button">Add your first record</button>
+        </div>
+      </section>
+    </section>
+  </main>
+</body>
+</html>

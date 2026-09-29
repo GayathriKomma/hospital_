@@ -7,14 +7,21 @@ from .models import Doctor, Patient, PatientDoctorMapping, User
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
     ordering = ("email",)
-    list_display = ("email", "name", "is_staff", "is_active")
-    search_fields = ("email", "name")
+    list_display = ("email", "name", "is_staff")
     fieldsets = (
         (None, {"fields": ("email", "password")}),
         ("Personal info", {"fields": ("name",)}),
         (
             "Permissions",
-            {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")},
+            {
+                "fields": (
+                    "is_active",
+                    "is_staff",
+                    "is_superuser",
+                    "groups",
+                    "user_permissions",
+                )
+            },
         ),
         ("Important dates", {"fields": ("last_login", "date_joined")}),
     )
@@ -23,12 +30,10 @@ class UserAdmin(BaseUserAdmin):
             None,
             {
                 "classes": ("wide",),
-                "fields": ("email", "name", "password1", "password2", "is_staff", "is_active"),
+                "fields": ("email", "name", "password1", "password2"),
             },
         ),
     )
 
 
-admin.site.register(Patient)
-admin.site.register(Doctor)
-admin.site.register(PatientDoctorMapping)
+admin.site.register((Patient, Doctor, PatientDoctorMapping))

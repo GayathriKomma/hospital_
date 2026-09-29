@@ -7,7 +7,9 @@ from .models import Doctor, Patient, PatientDoctorMapping, User
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(
-        write_only=True, validators=[validate_password], style={"input_type": "password"}
+        write_only=True,
+        validators=[validate_password],
+        style={"input_type": "password"},
     )
 
     class Meta:
@@ -41,11 +43,10 @@ class PatientSerializer(serializers.ModelSerializer):
             "email",
             "phone",
             "address",
-            "created_by",
             "created_at",
             "updated_at",
         )
-        read_only_fields = ("id", "created_by", "created_at", "updated_at")
+        read_only_fields = ("id", "created_at", "updated_at")
 
 
 class DoctorSerializer(serializers.ModelSerializer):
@@ -57,14 +58,13 @@ class DoctorSerializer(serializers.ModelSerializer):
             "specialization",
             "email",
             "phone",
-            "created_by",
             "created_at",
             "updated_at",
         )
-        read_only_fields = ("id", "created_by", "created_at", "updated_at")
+        read_only_fields = ("id", "created_at", "updated_at")
 
 
-class MappingCreateSerializer(serializers.ModelSerializer):
+class MappingSerializer(serializers.ModelSerializer):
     patient_id = serializers.PrimaryKeyRelatedField(
         queryset=Patient.objects.all(), source="patient"
     )
@@ -83,18 +83,22 @@ class MappingCreateSerializer(serializers.ModelSerializer):
         return patient
 
     def validate(self, attrs):
-        if PatientDoctorMapping.objects.filter(
-            patient=attrs["patient"], doctor=attrs["doctor"]
-        ).exists():
+        patient = attrs.get(
+            "patient",
+            self.instance.patient if self.instance is not None else None,
+        )
+        doctor = attrs.get(
+            "doctor",
+            self.instance.doctor if self.instance is not None else None,
+        )
+        duplicate = PatientDoctorMapping.objects.filter(
+            patient=patient,
+            doctor=doctor,
+        )
+        if self.instance:
+            duplicate = duplicate.exclude(pk=self.instance.pk)
+        if duplicate.exists():
             raise serializers.ValidationError(
                 {"doctor_id": "This doctor is already assigned to this patient."}
             )
         return attrs
-
-
-class MappingReadSerializer(serializers.ModelSerializer):
-    doctor = DoctorSerializer(read_only=True)
-
-    class Meta:
-        model = PatientDoctorMapping
-        fields = ("id", "patient", "doctor", "created_at")

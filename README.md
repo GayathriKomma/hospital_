@@ -1,17 +1,159 @@
-# Healthcare Backend API
+# Healthcare API
 
-A small Django REST Framework backend for user authentication, patients, doctors,
-and patient-doctor assignments. PostgreSQL is the configured application database;
-JWT access tokens protect the healthcare endpoints.
+A small Django REST Framework API for email-based registration, JWT login,
+patients, doctors, and patient-doctor assignments. PostgreSQL is used by the
+application; the test settings use SQLite so API tests do not need a database
+server. The project root (`http://127.0.0.1:8000/`) also serves a basic browser
+interface for trying the API.
 
-## Requirements
+## Architecture
 
-- Python 3.10+
-- PostgreSQL 13+
+- `config/` is the single Django project. It contains settings and root URLs.
+- `healthcare/` is the single app. It contains models, serializers, views, and URLs.
+- Patients belong to the account that created them. Patient lists, details, and
+  mappings are restricted to that account.
+- Doctors are a shared directory; any authenticated user can manage its entries.
+- A mapping connects one patient to one doctor. The same doctor cannot be
+  assigned to the same patient twice.
+
+## Folder structure
+
+```text
+config/
+    settings.py
+    test_settings.py
+    urls.py
+    asgi.py
+    wsgi.py
+healthcare/
+    migrations/
+    templates/healthcare/
+    static/healthcare/
+    models.py
+    serializers.py
+    views.py
+    urls.py
+    tests.py
+manage.py
+requirements.txt
+.env.example
+```
+
+## Models
+
+- `User` uses a unique email address to log in.
+- `Patient` has a `created_by` foreign key to `User`.
+- `Doctor` is a shared directory entry.
+- `PatientDoctorMapping` links a patient and a doctor, with a database constraint
+  preventing duplicate assignments.
+
+Patient, doctor, and mapping records include creation/update timestamps where
+appropriate.
+
+## API routes
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| POST | `/api/auth/register/` | Create an account |
+| POST | `/api/auth/login/` | Get access and refresh tokens |
+| POST | `/api/auth/refresh/` | Refresh an access token |
+| GET, POST | `/api/patients/` | List your patients or create one |
+| GET, PUT, PATCH, DELETE | `/api/patients/<id>/` | Manage one of your patients |
+| GET, POST | `/api/doctors/` | List or create doctors |
+| GET, PUT, PATCH, DELETE | `/api/doctors/<id>/` | Manage a doctor |
+| GET, POST | `/api/mappings/` | List your assignments or assign a doctor |
+| GET, PUT, PATCH, DELETE | `/api/mappings/<id>/` | Manage one of your assignments |
+
+List endpoints use page-number pagination with 10 results per page. All routes
+except registration, login, and token refresh require a JWT access token.
+
+## Sample requests
+
+Register:
+
+```json
+{
+  "name": "Sam Example",
+  "email": "sam@example.com",
+  "password": "Strong-password-123!"
+}
+```
+
+Login with `email` and `password`:
+
+```json
+{
+  "email": "sam@example.com",
+  "password": "Strong-password-123!"
+}
+```
+
+The response contains `access`, `refresh`, and basic user information. Use the
+access token in the `Authorization: Bearer <access>` header.
+
+Example login response:
+
+```json
+{
+  "access": "<access-token>",
+  "refresh": "<refresh-token>",
+  "user": {
+    "id": 1,
+    "name": "Sam Example",
+    "email": "sam@example.com"
+  }
+}
+```
+
+Create a patient:
+
+```json
+{
+  "name": "Alex Example",
+  "age": 34,
+  "gender": "other",
+  "email": "alex@example.com",
+  "phone": "555-0100",
+  "address": "10 Main Street"
+}
+```
+
+Create a doctor:
+
+```json
+{
+  "name": "Dr. Lee",
+  "specialization": "Cardiology",
+  "email": "lee@example.com",
+  "phone": "555-0110"
+}
+```
+
+Assign a doctor:
+
+```json
+{
+  "patient_id": 1,
+  "doctor_id": 1
+}
+```
+
+Example assignment response:
+
+```json
+{
+  "id": 1,
+  "patient_id": 1,
+  "doctor_id": 1,
+  "created_at": "2026-09-29T12:00:00Z"
+}
+```
 
 ## Run locally
 
-1. Create and activate a virtual environment, then install dependencies:
+1. Install Python 3.10+ and PostgreSQL. Create a database (for example,
+   `healthcare_db`).
+2. In PowerShell, create a virtual environment and install packages:
 
    ```powershell
    py -m venv .venv
@@ -19,74 +161,49 @@ JWT access tokens protect the healthcare endpoints.
    pip install -r requirements.txt
    ```
 
-2. Create a PostgreSQL database named `healthcare_db` (or choose another name).
-   Copy `.env.example` to `.env` and set the values for your environment. The
-   `.env` file is ignored by Git and loaded by Django at startup.
+3. Copy `.env.example` to `.env` and set your PostgreSQL password and a private
+   Django secret key:
 
    ```powershell
    Copy-Item .env.example .env
    ```
 
-3. Create tables and start the development server:
+4. Apply migrations and start Django:
 
    ```powershell
    py manage.py migrate
+   py manage.py seed_demo
    py manage.py runserver
    ```
 
-   The API is available at `http://127.0.0.1:8000/api/`.
+   `seed_demo` adds three synthetic patients, three synthetic doctors, and four
+   assignments for `demo@healthcare.example`. If it creates that account, the
+   initial password is `CareDemo#2026!`. It does not reset an existing account's
+   password. The command is safe to run more than once.
 
-## Authentication flow
+5. Open `http://127.0.0.1:8000/`, sign in with the demo account, and view the
+   sample records. The sample people, `.test` email addresses, and phone numbers
+   are fictional.
 
-1. `POST /api/auth/register/`
+6. Run the tests (they use in-memory SQLite):
 
-   ```json
-   {
-     "name": "Sam Example",
-     "email": "sam@example.com",
-     "password": "A-strong-password-123!"
-   }
+   ```powershell
+   py manage.py test healthcare --settings=config.test_settings
    ```
 
-2. `POST /api/auth/login/` with the same email and password. The response contains
-   `access` and `refresh` tokens. Send the access token on protected requests:
+The basic browser UI at `http://127.0.0.1:8000/` is only a small convenience for
+trying the API; the API is the primary interface.
 
-   ```text
-   Authorization: Bearer <access>
-   ```
+## Postman test steps
 
-3. When the access token expires, send the refresh token to
-   `POST /api/auth/refresh/` to get a new access token.
-
-## Endpoints
-
-| Method | Endpoint | Purpose |
-| --- | --- | --- |
-| POST | `/api/auth/register/` | Create a user |
-| POST | `/api/auth/login/` | Get access and refresh JWTs |
-| POST | `/api/auth/refresh/` | Refresh an access token |
-| GET, POST | `/api/patients/` | List your patients or create a patient |
-| GET, PUT, PATCH, DELETE | `/api/patients/<id>/` | Read or manage one of your patients |
-| GET, POST | `/api/doctors/` | List doctors or create a doctor |
-| GET, PUT, PATCH, DELETE | `/api/doctors/<id>/` | Read or manage a doctor |
-| GET, POST | `/api/mappings/` | List your mappings or assign a doctor |
-| GET | `/api/mappings/<patient_id>/` | List doctors assigned to your patient |
-| DELETE | `/api/mappings/<mapping_id>/` | Remove an assignment from your patient |
-
-Doctor and patient endpoints require authentication. Patient records and mappings
-are scoped to the user who created the patient. Doctor records are visible to
-authenticated users, as required for doctor discovery.
-
-To assign a doctor, send `patient_id` and `doctor_id` to `/api/mappings/`.
-Duplicate assignments and assignments to another user's patient are rejected.
-Deleting a patient also removes its mappings; deleting a doctor removes its
-assignments.
-
-## Tests
-
-The automated API tests use an in-memory SQLite database for convenient local
-execution; normal application settings use PostgreSQL.
-
-```powershell
-py manage.py test healthcare --settings=config.test_settings
-```
+1. Send `POST http://127.0.0.1:8000/api/auth/register/` with the registration
+   JSON above.
+2. Send `POST http://127.0.0.1:8000/api/auth/login/` with that email/password.
+   Copy the `access` value from the response.
+3. For protected requests, set **Authorization** to **Bearer Token** and paste
+   the access token.
+4. Create a patient and doctor using the sample requests.
+5. Send the mapping request with their returned IDs, then check
+   `GET /api/mappings/`.
+6. Register and log in as another account. Its patient list and mappings should
+   not show the first account's records.

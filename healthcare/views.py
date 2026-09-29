@@ -1,19 +1,20 @@
-from django.shortcuts import get_object_or_404
-from rest_framework import generics, status, viewsets
+from django.shortcuts import render
+from rest_framework import generics, viewsets
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework.response import Response
-from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .models import Doctor, Patient, PatientDoctorMapping
 from .serializers import (
     CustomTokenObtainPairSerializer,
     DoctorSerializer,
-    MappingCreateSerializer,
-    MappingReadSerializer,
+    MappingSerializer,
     PatientSerializer,
     RegisterSerializer,
 )
+
+
+def home(request):
+    return render(request, "healthcare/index.html")
 
 
 class RegisterView(generics.CreateAPIView):
@@ -46,42 +47,11 @@ class DoctorViewSet(viewsets.ModelViewSet):
         serializer.save(created_by=self.request.user)
 
 
-class MappingCollectionView(APIView):
+class MappingViewSet(viewsets.ModelViewSet):
+    serializer_class = MappingSerializer
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
-        mappings = PatientDoctorMapping.objects.filter(
-            patient__created_by=request.user
+    def get_queryset(self):
+        return PatientDoctorMapping.objects.filter(
+            patient__created_by=self.request.user
         ).select_related("patient", "doctor")
-        return Response(MappingReadSerializer(mappings, many=True).data)
-
-    def post(self, request):
-        serializer = MappingCreateSerializer(
-            data=request.data, context={"request": request}
-        )
-        serializer.is_valid(raise_exception=True)
-        mapping = serializer.save()
-        return Response(
-            MappingReadSerializer(mapping).data,
-            status=status.HTTP_201_CREATED,
-        )
-
-
-class MappingDetailView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, identifier):
-        mappings = PatientDoctorMapping.objects.filter(
-            patient_id=identifier,
-            patient__created_by=request.user,
-        ).select_related("patient", "doctor")
-        return Response(MappingReadSerializer(mappings, many=True).data)
-
-    def delete(self, request, identifier):
-        mapping = get_object_or_404(
-            PatientDoctorMapping,
-            pk=identifier,
-            patient__created_by=request.user,
-        )
-        mapping.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
